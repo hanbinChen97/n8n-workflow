@@ -1,0 +1,401 @@
+{
+  "name": "trace application",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        0
+      ],
+      "id": "b65353ca-aeda-4cc2-9d3c-3614da404aa9",
+      "name": "Email Trigger (IMAP)",
+      "credentials": {
+        "imap": {
+          "id": "EyShMBQ0dUiWKsaL",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        192,
+        224
+      ],
+      "id": "3203a99d-efb3-4eb6-b430-88c2014853f5",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "yf5DD3b6l7dzrOdS",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert email analysis AI for job applications. Your job is to classify an email and extract key details into a structured JSON response.\n\n**Primary Task: Classify**\nFirst, determine the `email_type`. It must be one of:\n- `JOB_APPLICATION`: Any email related to a job application process.\n- `NEWSLETTER`, `PROMOTION`, `PERSONAL`, `OTHER`.\n\n**Secondary Task: Extract (Conditional)**\nIf `email_type` is `JOB_APPLICATION`, extract the following. Otherwise, all fields except `email_type` must be `null`.\n\n- **company_name**: The full official name of the company.\n- **job_title**: The specific job title.\n- **location**: The city from the company's address.\n- **application_date**: The date the email was received (`YYYY-MM-DD`).\n- **contact_email**: The sender's email address.\n- **status**: **This is the most critical field.** Analyze the email's content and keywords to determine the application's current stage. Choose ONE of the following:\n    - `Applied`: For initial confirmations. Look for keywords like \"we received your application\", \"Eingangsbestätigung\", \"danke für Deine Bewerbung\".\n    - `Rejected`: For rejections. Look for keywords like **\"leider müssen wir Ihnen mitteilen\", \"absagen\", \"not moving forward\", \"unfortunately we cannot proceed\", \"andere Bewerber besser passten\"**.\n    - `Interview`: For interview invitations. Look for keywords like \"Einladung zum Gespräch\", \"interview\", \"kennenlernen\".\n\n**Email Content to Analyze:**\n---\n{{ $json.subject }}\n{{ $json.textHtml }}\n---\n\n**Required JSON Output Format:**\n{\n  \"email_type\": \"string\",\n  \"company_name\": \"string or null\",\n  \"job_title\": \"string or null\",\n  \"location\": \"string or null\",\n  \"application_date\": \"string or null\",\n  \"status\": \"string or null\",\n  \"contact_email\": \"string or null\"\n}",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        192,
+        0
+      ],
+      "id": "0cf32b7c-ce99-475e-b8b1-c1e4c324d298",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"email_type\": {\n      \"type\": \"string\",\n      \"description\": \"The classification of the email's purpose.\",\n      \"enum\": [\n        \"JOB_APPLICATION\",\n        \"NEWSLETTER\",\n        \"PROMOTION\",\n        \"PERSONAL\",\n        \"OTHER\"\n      ]\n    },\n    \"company_name\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The full name of the company.\"\n    },\n    \"job_title\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The title of the position applied for.\"\n    },\n    \"location\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The city where the job is located.\"\n    },\n    \"application_date\": {\n      \"type\": [\"string\", \"null\"],\n      \"format\": \"date\",\n      \"description\": \"The date the email was received, formatted as YYYY-MM-DD.\"\n    },\n    \"status\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The current stage of the application process.\",\n      \"enum\": [\n        \"Applied\",\n        \"Rejected\",\n        \"Interview\",\n        \"Under Review\",\n        null\n      ]\n    },\n    \"contact_email\": {\n      \"type\": [\"string\", \"null\"],\n      \"format\": \"email\",\n      \"description\": \"The sender's contact email address.\"\n    }\n  },\n  \"required\": [\n    \"email_type\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        384,
+        224
+      ],
+      "id": "dd8f6f4d-6a6e-4110-b6c6-a360c6fc2073",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dd97c9cc-dc45-41fe-93be-f2cb16146171",
+              "leftValue": "={{ $json.output.email_type }}",
+              "rightValue": "JOB_APPLICATION",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        576,
+        0
+      ],
+      "id": "5786dee9-0d29-40f0-a607-4cc9a8d072fc",
+      "name": "If",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "Applied",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "80afb662-6b9a-4d43-9479-1af428ba54e2"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "96fc64f9-52a3-4bfa-9bc6-db66d6d3ec3f",
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "Rejected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        848,
+        -16
+      ],
+      "id": "8408ad18-3138-49f3-bf7b-af04c682b6bc",
+      "name": "Switch"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        128
+      ],
+      "id": "cf8bef36-d11f-45df-93c4-d5868b8e471e",
+      "name": "application"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "1cf1a680-2600-80f1-ab96-ec1e5932411a",
+          "mode": "list",
+          "cachedResultName": "简历投递",
+          "cachedResultUrl": "https://www.notion.so/1cf1a680260080f1ab96ec1e5932411a"
+        },
+        "title": "={{ $json.output.company_name }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "职位|rich_text",
+              "textContent": "={{ $json.output.job_title }}"
+            },
+            {
+              "key": "公司|title",
+              "title": "={{ $json.output.company_name }}"
+            },
+            {
+              "key": "投递时间|rich_text",
+              "textContent": "={{ $json.output.application_date }}"
+            },
+            {
+              "key": "地点|rich_text",
+              "textContent": "={{ $json.output.location }}"
+            },
+            {
+              "key": "投递时间|rich_text",
+              "textContent": "={{ $json.output.application_date }}"
+            },
+            {
+              "key": "申请状态|select",
+              "selectValue": "applied"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1104,
+        -32
+      ],
+      "id": "31da7e2c-bf46-40f4-8c82-37c3460960b7",
+      "name": "Create a database page",
+      "credentials": {
+        "notionApi": {
+          "id": "AYg35VO3LPea0qhj",
+          "name": "Notion account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Email Trigger (IMAP)": [
+      {
+        "json": {
+          "textHtml": "<html>\r\n<head>\r\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\r\n</head>\r\n<body style=\"overflow-wrap: break-word; -webkit-nbsp-mode: space; line-break: after-white-space;\">\r\n<br id=\"lineBreakAtBeginningOfMessage\">\r\n<div><br>\r\n<blockquote type=\"cite\">\r\n<div>Begin forwarded message:</div>\r\n<br class=\"Apple-interchange-newline\">\r\n<div style=\"margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;\">\r\n<span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif; color:rgba(0, 0, 0, 1.0);\"><b>From:\r\n</b></span><span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif;\">Careers - Deutsche Telekom Group &lt;Recruiting.NOREPLY@hrsuite.telekom.com&gt;<br>\r\n</span></div>\r\n<div style=\"margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;\">\r\n<span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif; color:rgba(0, 0, 0, 1.0);\"><b>Subject:\r\n</b></span><span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif;\"><b>It didn't work out this time - Your application as &quot;Trainee Fokus Data Science (m/w/d) - Vorstandsbereich Deutschland&quot; (Job ID: 237764)</b><br>\r\n</span></div>\r\n<div style=\"margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;\">\r\n<span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif; color:rgba(0, 0, 0, 1.0);\"><b>Date:\r\n</b></span><span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif;\">25. September 2025 at 18:00:49 GMT&#43;2<br>\r\n</span></div>\r\n<div style=\"margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;\">\r\n<span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif; color:rgba(0, 0, 0, 1.0);\"><b>To:\r\n</b></span><span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif;\">Hanbin Chen &lt;hanbin.chen@rwth-aachen.de&gt;<br>\r\n</span></div>\r\n<div style=\"margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;\">\r\n<span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif; color:rgba(0, 0, 0, 1.0);\"><b>Reply-To:\r\n</b></span><span style=\"font-family: -webkit-system-font, Helvetica Neue, Helvetica, sans-serif;\">Careers - Deutsche Telekom Group &lt;Recruiting.NOREPLY@hrsuite.telekom.com&gt;<br>\r\n</span></div>\r\n<br>\r\n<div>\r\n<p style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\n<img src=\"https://performancemanager5.successfactors.eu/companyLogoServlet/?companyId=DTAG&amp;mod=1655967863267\" alt=\"Company Logo\" style=\"background-color: rgb(255, 255, 255);\"></p>\r\n<p style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\nDear Hanbin Chen,</p>\r\n<p style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\nThank you very much for taking the time to apply for a position in our company. Often the deciding factor is a unique combination of different qualifications. For the position &quot;Trainee Fokus Data Science (m/w/d) - Vorstandsbereich Deutschland&quot; (Job ID: 237764)\r\n your profile does not exactly match what we are looking for. We therefore regret to inform you that your application was not successful.</p>\r\n<p style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\nOf course we would be happy if you continue to visit our<span class=\"Apple-converted-space\">&nbsp;</span><a href=\"https://www.telekom.com/en/careers/jobsearch?where=Germany\" target=\"_blank\" style=\"color: rgb(226, 0, 116);\">Telekom Job Search</a><span class=\"Apple-converted-space\">&nbsp;</span>or\r\n subscribe for a<span class=\"Apple-converted-space\">&nbsp;</span><a href=\"https://telekom.jobs/careers?ac=jobabo&amp;sc_keyword=&amp;sc_cityname_base=Deutschland&amp;\" target=\"_blank\" style=\"color: rgb(226, 0, 116);\">Job Alert</a><span class=\"Apple-converted-space\">&nbsp;</span>-\r\n maybe you’ll soon find a position that matches your skill set!</p>\r\n<p style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\nWe thank you for your interest and wish you all the best.</p>\r\n<p style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\nIn case of questions you can reach me under<span class=\"Apple-converted-space\">&nbsp;</span><a href=\"mailto:nadine.rohland@telekom.de\" style=\"color: rgb(226, 0, 116);\">nadine.rohland@telekom.de</a><span class=\"Apple-converted-space\">&nbsp;</span>or &#43;49 151 28438708.</p>\r\n<p style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\nBest regards<br>\r\nPetra Hofmann<br>\r\nTelekom Recruiting Team</p>\r\n<p style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\n<b>You could not reach me or you have a general question?</b><br>\r\nOur Telekom Recruiting Team is happy to help at<span class=\"Apple-converted-space\">&nbsp;</span><a href=\"mailto:jobs@telekom.de\" style=\"color: rgb(226, 0, 116);\">jobs@telekom.de</a><span class=\"Apple-converted-space\">&nbsp;</span>or via phone at &#43;49 800 3306700 (Monday\r\n to Thursday from 9 am to 4.30 pm and Friday from 9 am to 3.30 pm)</p>\r\n<div style=\"caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\n<br class=\"webkit-block-placeholder\">\r\n</div>\r\n<div class=\"c\" style=\"line-height: 18px; caret-color: rgb(0, 0, 0); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none;\">\r\n<b>Connect with us:</b><br>\r\n<a href=\"https://www.linkedin.com/company/telekom\"><img alt=\"\" src=\"https://performancemanager5.successfactors.eu/DTAG/linkedin_v2.png\" target=\"_blank\" style=\"border-style: solid; border-width: 0px; height: 28px; width: 28px;\"></a><span class=\"Apple-converted-space\">&nbsp;</span>&nbsp;\r\n &nbsp;<span class=\"Apple-converted-space\">&nbsp;</span><a href=\"https://www.xing.com/companies/deutschetelekomag\"><img alt=\"\" src=\"https://performancemanager5.successfactors.eu/DTAG/xing.png\" target=\"_blank\" style=\"border-style: solid; border-width: 0px; height: 28px; width: 28px;\"></a><span class=\"Apple-converted-space\">&nbsp;</span>&nbsp;\r\n &nbsp;<span class=\"Apple-converted-space\">&nbsp;</span><a href=\"https://www.facebook.com/TelekomGroupCareers\"><img alt=\"\" src=\"https://performancemanager5.successfactors.eu/DTAG/facebook.png\" target=\"_blank\" style=\"border-style: solid; border-width: 0px; height: 28px; width: 28px;\"></a><span class=\"Apple-converted-space\">&nbsp;</span>&nbsp;\r\n &nbsp;<a href=\"https://www.instagram.com/telekomgroup.careers/\"><img alt=\"\" src=\"https://performancemanager5.successfactors.eu/DTAG/instagram.png\" target=\"_blank\" style=\"border-style: solid; border-width: 0px; height: 28px; width: 28px;\"></a><span class=\"Apple-converted-space\">&nbsp;</span>&nbsp;\r\n &nbsp;<span class=\"Apple-converted-space\">&nbsp;</span><a href=\"https://www.youtube.com/TelekomKarriere\"><img alt=\"\" src=\"https://performancemanager5.successfactors.eu/DTAG/youtube.png\" target=\"_blank\" style=\"border-style: solid; border-width: 0px; height: 28px; width: 28px;\"></a></div>\r\n</div>\r\n</blockquote>\r\n</div>\r\n<br>\r\n</body>\r\n</html>\r\n",
+          "textPlain": "",
+          "metadata": {
+            "mime-version": "1.0",
+            "received": "from RWTHEX-W2-A.rwth-ad.de (134.130.26.158) by rwthex-w2-b.rwth-ad.de (134.130.26.159) with Microsoft SMTP Server (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.2.2562.27 via Mailbox Transport; Mon, 29 Sep 2025 00:20:41 +0200",
+            "thread-topic": "It didn't work out this time - Your application as \"Trainee Fokus Data Science (m/w/d) - Vorstandsbereich Deutschland\" (Job ID: 237764)",
+            "thread-index": "AQHcLjWTFABA7FCUjESYlCkuwMguAQ==",
+            "message-id": "<D1FB8B92-9FE2-415F-ACC4-832CDAD5F10E@rwth-aachen.de>",
+            "references": "\t<2051519315.1067760.1758816049037@pc33bsub12.dc033.sf.priv.successfactors.com>",
+            "accept-language": "en-US, de-DE",
+            "content-language": "en-US",
+            "x-ms-exchange-organization-authas": "Internal",
+            "x-ms-exchange-organization-authmechanism": "04",
+            "x-ms-exchange-organization-authsource": "rwthex-w2-b.rwth-ad.de",
+            "x-ms-has-attach": "",
+            "x-ms-exchange-organization-network-message-id": "\t2da9ecfc-c8ae-4025-4510-08ddfedd4230",
+            "x-ms-exchange-organization-scl": "-1",
+            "x-ms-tnef-correlator": "",
+            "x-ms-exchange-organization-recordreviewcfmtype": "0",
+            "content-type": "text/html; charset=\"utf-8\"",
+            "content-id": "<4CA7E3ECAA6BD94C9AB27697C190772E@rwth-ad.de>",
+            "content-transfer-encoding": "base64"
+          },
+          "attributes": {
+            "uid": 7642
+          },
+          "from": "\"Chen, Hanbin\" <hanbin.chen@rwth-aachen.de>",
+          "to": "\"Chen, Hanbin\" <hanbin.chen@rwth-aachen.de>",
+          "subject": "Fwd: It didn't work out this time - Your application as \"Trainee Fokus Data Science (m/w/d) - Vorstandsbereich Deutschland\" (Job ID: 237764)",
+          "date": "Mon, 29 Sep 2025 00:20:40 +0200"
+        }
+      }
+    ],
+    "application": [
+      {
+        "json": {
+          "textHtml": "<html>\r\n<head>\r\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\r\n</head>\r\n<body>\r\n<div style=\"line-break:after-white-space\"><br id=\"x_lineBreakAtBeginningOfMessage\">\r\n<div><br>\r\n<blockquote type=\"cite\">\r\n<div>On 22. Sep 2025, at 15:21, Bewerbung Rhenag &lt;bewerbungen@rhenag.de&gt; wrote:</div>\r\n<br class=\"x_Apple-interchange-newline\">\r\n<div>\r\n<div class=\"x_body\" style=\"font-family:'arial'; font-size:10pt\">\r\n<p>Hallo Hanbin,</p>\r\n<p>wir haben Deine Bewerbungsunterlagen auf unsere ausgeschriebene Stelle Softwareentwickler / Backend Developer (m/w/d) erhalten. Für das damit entgegengebrachte Vertrauen bedanken wir uns.</p>\r\n<p>Jede Bewerbung wird von uns mit Sorgfalt geprüft – das braucht etwas Zeit. Danke für Deine Geduld! Wir nehmen so bald wie möglich Kontakt mit Dir auf.&nbsp;</p>\r\n<p>Zur Kenntnisnahme erhältst Du anbei die Information „Gesetzliche Vorgaben zum Datenschutz“.</p>\r\n<p><br>\r\n</p>\r\n<p>Mit freundlichen Grüßen<br>\r\nDein Talent Management-Team</p>\r\n<p>=============================</p>\r\n<p>So erreichst du uns:<br>\r\n0221-93731-105<br>\r\n<a href=\"mailto:bewerbungen@rhenag.de\" target=\"_blank\">bewerbungen@rhenag.de</a><br>\r\n<br>\r\nrhenag Rheinische Energie AG<br>\r\nPersonalmanagement<br>\r\nBayenthalgürtel 9<br>\r\n50968 Köln</p>\r\n<p>Vorsitzender des Aufsichtsrats:<br>\r\nAndreas Feicht</p>\r\n<p>Vorstand:<br>\r\nJan-Bernd Brüning<br>\r\nTill Cremer</p>\r\n<p>Handelsregister: AG Köln HRB 35215</p>\r\n</div>\r\n</div>\r\n</blockquote>\r\n</div>\r\n</div>\r\n<div style=\"line-break:after-white-space\">\r\n<div>\r\n<blockquote type=\"cite\">\r\n<div></div>\r\n</blockquote>\r\n</div>\r\n<br>\r\n</div>\r\n</body>\r\n</html>\r\n",
+          "textPlain": "",
+          "metadata": {
+            "mime-version": "1.0",
+            "received": "from rwthex-w2-b.rwth-ad.de (134.130.26.159) by rwthex-w2-b.rwth-ad.de (134.130.26.159) with Microsoft SMTP Server (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.2.2562.27 via Mailbox Transport; Sun, 28 Sep 2025 23:05:40 +0200",
+            "thread-topic": "Deine Bewerbung - Softwareentwickler / Backend Developer (m/w/d)",
+            "thread-index": "AQHcK8PShqgTASBgAkqDkQcogPBbW7So/i6A",
+            "message-id": "<F8D5FCF1-6E46-4F4F-9100-621128E7A159@rwth-aachen.de>",
+            "references": "\t<2104284413.383.1758547295469@sodalismodule-rhenag-mabew-prod-78b497fd87-62bn7>",
+            "in-reply-to": "\t<2104284413.383.1758547295469@sodalismodule-rhenag-mabew-prod-78b497fd87-62bn7>",
+            "accept-language": "en-US, de-DE",
+            "content-language": "en-US",
+            "x-ms-exchange-organization-authas": "Internal",
+            "x-ms-exchange-organization-authmechanism": "04",
+            "x-ms-exchange-organization-authsource": "rwthex-w2-b.rwth-ad.de",
+            "x-ms-has-attach": "yes",
+            "x-ms-exchange-organization-network-message-id": "\t5666958a-d811-4fa2-64f5-08ddfed2c7be",
+            "x-ms-exchange-organization-scl": "-1",
+            "x-ms-tnef-correlator": "",
+            "x-ms-exchange-organization-recordreviewcfmtype": "0",
+            "content-type": "multipart/mixed;\tboundary=\"_002_F8D5FCF16E464F4F9100621128E7A159rwthaachende_\""
+          },
+          "attributes": {
+            "uid": 7640
+          },
+          "from": "\"Chen, Hanbin\" <hanbin.chen@rwth-aachen.de>",
+          "to": "\"Chen, Hanbin\" <hanbin.chen@rwth-aachen.de>",
+          "subject": "Re: Deine Bewerbung - Softwareentwickler / Backend Developer (m/w/d)",
+          "date": "Sun, 28 Sep 2025 23:05:40 +0200"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Create a database page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "application": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c78ebe17-6e0c-443b-b6b9-8c1ab35dad76",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2a2828e98a9e95a063f14b57c56eae086158b5f68c4304398e506f37735d872e"
+  },
+  "id": "BRFjFoXawB0QhD2J",
+  "tags": []
+}
