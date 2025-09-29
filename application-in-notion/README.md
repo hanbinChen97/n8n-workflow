@@ -19,6 +19,8 @@ LLM node to:
 Create notion database page:
 - **Create** a new **database page** entry in Notion database with the extracted information
 
+## Result in notion
+![alt text](asset/result.png)
 
-TODO：
+## TODO：
 update when receiving rejection email, (hard to do, due to hard to select a page to update)
